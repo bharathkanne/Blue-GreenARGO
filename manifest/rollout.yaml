@@ -1,0 +1,59 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: my-app
+  namespace: production
+spec:
+  replicas: 4
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        - name: my-app
+          image: myorg/my-app:v1.0.0
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+  strategy:
+    blueGreen:
+      activeService: my-app-active
+      previewService: my-app-preview
+      autoPromotionEnabled: false
+      scaleDownDelaySeconds: 300
+      abortScaleDownDelaySeconds: 60
+      prePromotionAnalysis:
+        templates:
+          - templateName: smoke-test
+        args:
+          - name: service-name
+            value: my-app-preview
+      postPromotionAnalysis:
+        templates:
+          - templateName: success-rate
+        args:
+          - name: service-name
+            value: my-app-active
